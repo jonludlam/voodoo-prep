@@ -1,0 +1,15 @@
+(env
+ (dev
+  (flags (:standard -g -w -3)))
+ (release
+  (flags (:standard -g -w -3))))
+
+(executable
+ (public_name voodoo_prep)
+ (libraries astring compiler-libs.common unix fpath result mkgen cmdliner))
+
+(install
+ (files odoc-upload.sh)
+ (section bin)
+ (package voodoo-prep))
+
