@@ -2,7 +2,7 @@
 
 open Listm
 
-(* This module prepares a directory structure for making documentation.Lift_let_to_initialize_symbol
+(* This module prepares a directory structure for making documentation.
 
   We go through all the installed cm{t,ti,i}s and find which package/version they are from. We then
   query opam to find out their dependencies. Then we copy the files into the following structure:
