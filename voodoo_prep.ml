@@ -15,10 +15,6 @@ let conv_compose ?docv parse to_string c =
   conv ~docv (parse, print)
 
 
-(* Just to find the location of all relevant ocaml cmt/cmti/cmis *)
-let read_lib_dir () =
-  Opam.lib ()
-
 module Prep = struct
 
   let switch =

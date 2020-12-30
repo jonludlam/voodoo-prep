@@ -87,14 +87,11 @@ let all_opam_packages () =
     ]
   >>= deps_of_opam_result
 
-let lib () =
-  Util.lines_of_process "opam" [ "var"; "--switch"; get_switch (); "lib" ]
-  |> List.hd
-
 let prefix () =
   Util.lines_of_process "opam" [ "var"; "--switch"; get_switch (); "prefix" ]
   |> List.hd
 
+(** Relative to [prefix ()]. *)
 let pkg_contents pkg =
   let prefix = prefix () in
   let changes_file = Format.asprintf "%s/.opam-switch/install/%s.changes" prefix pkg in
@@ -102,4 +99,4 @@ let pkg_contents pkg =
   let changed = OpamFile.Changes.read_from_channel ic in
   close_in ic;
   let added = OpamStd.String.Map.fold (fun file x acc -> match x with OpamDirTrack.Added _ -> file :: acc | _ -> acc) changed [] in
-  List.map (fun path -> Fpath.(v prefix // v path)) added
+  List.map Fpath.v added

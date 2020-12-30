@@ -47,5 +47,6 @@ let time txt fn a =
   result
 
 let cp src dst =
+  let src = Fpath.to_string src and dst = Fpath.to_string dst in
   Format.eprintf "%s -> %s\n%!" src dst;
   assert (lines_of_process "cp" [ src; dst ] = [])
