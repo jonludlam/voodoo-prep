@@ -11,30 +11,25 @@ open Listm
   
   *)
 
-type source_info = {
-  root : Fpath.t; (** Root path in which this was found *)
-  relpath : Fpath.t; (** Path relative to [root] *)
-  name : string; (** 'Astring' *)
-  package : Opam.package; (* Package in which this file lives ("astring") *)
-  universe : Universe.t
+type package_info = {
+  package_opam : Opam.package;
+  universe : Universe.t;
 }
+
+type source_info = {
+  root : Fpath.t;  (** Root path in which this was found *)
+  relpath : Fpath.t;  (** Path relative to [root] *)
+  name : string;  (** 'Astring' *)
+  package : package_info; (* Package in which this file lives ("astring") *)
+}
+
 let top_path = Fpath.v "prep"
-
-
-(* Given a base Fpath.t (a cmt, cmti or cmi, without extension), figure out the 'best' one - in order or preference
-   cmti, cmt, cmi *)
-
 
 (** Get info given a relative path (to [root]) to an object file (cmt, cmti or cmi). *)
 let get_cm_info root package relpath =
   let _, lname = Fpath.split_base relpath in
   let name = String.capitalize (Fpath.to_string lname) in
-  try
-    let _, universe = Universe.Current.dep_universe package.Opam.name in
-    Format.eprintf "%a: universe=%a\n%!" Opam.pp_package package Universe.pp
-      universe;
-    [ { root; relpath; name; package; universe } ]
-  with _ -> []
+  [ { root; relpath; name; package } ]
 
 (** Lower is better *)
 let cm_file_preference = function
@@ -66,7 +61,7 @@ let get_cm_files files =
 (** A list of [source_info] for each files of a package.
     Keep only one of the corresponding .cmti, .cmt or .cmi for a module, in
     that order of preference. *)
-let infos_of_package pkg =
+let infos_of_package package_opam =
   let partition_by_kind lib f =
     let segs = Fpath.segs f in
     match segs with
@@ -75,12 +70,19 @@ let infos_of_package pkg =
         f :: lib
     | _ -> lib
   in
+  let package_name = package_opam.Opam.name in
   let lib =
-    List.fold_left partition_by_kind [] (Opam.pkg_contents pkg.Opam.name)
+    List.fold_left partition_by_kind [] (Opam.pkg_contents package_name)
   in
   let lib = get_cm_files lib in
   let prefix = Opam.prefix () |> Fpath.v in
-  List.flatten (List.map (get_cm_info prefix pkg) lib)
+  let package =
+    let _, universe = Universe.Current.dep_universe package_name in
+    Format.eprintf "%a: universe=%a\n%!" Opam.pp_package package_opam
+      Universe.pp universe;
+    { package_opam; universe }
+  in
+  List.flatten (List.map (get_cm_info prefix package) lib)
 
 let run whitelist _roots =
   let packages = Opam.all_opam_packages () in
@@ -89,17 +91,18 @@ let run whitelist _roots =
 
   let infos =
     if List.length whitelist > 0
-    then List.filter (fun info -> List.mem info.package.name whitelist) infos
+    then List.filter (fun info -> List.mem info.package.package_opam.name whitelist) infos
     else infos
   in
   let infos =
-    List.filter (fun info -> try ignore (Universe.Current.dep_universe info.package.name); true with _ -> Format.eprintf "pruning %a\n%!" Fpath.pp (Fpath.append info.root info.relpath); false) infos
+    List.filter (fun info -> try ignore (Universe.Current.dep_universe info.package.package_opam.name); true with _ -> Format.eprintf "pruning %a\n%!" Fpath.pp (Fpath.append info.root info.relpath); false) infos
   in
   let copy info =
-    let v_str = Astring.String.cuts ~sep:"." info.package.version in
+    let { package_opam; universe } = info.package in
+    let v_str = Astring.String.cuts ~sep:"." package_opam.version in
     let v_str = String.concat "_" v_str in
     let src = Fpath.append info.root info.relpath in
-    let dest = Fpath.(top_path / "universes" / info.universe.id / info.package.name / v_str // info.relpath ) in
+    let dest = Fpath.(top_path / "universes" / universe.id / package_opam.name / v_str // info.relpath ) in
     Util.mkdir_p (Fpath.parent dest);
     Util.cp src dest
   in
