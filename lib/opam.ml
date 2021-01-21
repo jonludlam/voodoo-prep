@@ -94,9 +94,18 @@ let prefix () =
 (** Relative to [prefix ()]. *)
 let pkg_contents pkg =
   let prefix = prefix () in
-  let changes_file = Format.asprintf "%s/.opam-switch/install/%s.changes" prefix pkg in
-  let ic = open_in changes_file in
-  let changed = OpamFile.Changes.read_from_channel ic in
-  close_in ic;
-  let added = OpamStd.String.Map.fold (fun file x acc -> match x with OpamDirTrack.Added _ -> file :: acc | _ -> acc) changed [] in
+  let changes_file =
+    Format.asprintf "%s/.opam-switch/install/%s.changes" prefix pkg
+  in
+  let added =
+    match open_in changes_file with
+    | exception Sys_error _ -> []
+    | ic ->
+        let changed = OpamFile.Changes.read_from_channel ic in
+        close_in ic;
+        OpamStd.String.Map.fold
+          (fun file x acc ->
+            match x with OpamDirTrack.Added _ -> file :: acc | _ -> acc)
+          changed []
+  in
   List.map Fpath.v added
