@@ -50,3 +50,10 @@ let cp src dst =
   let src = Fpath.to_string src and dst = Fpath.to_string dst in
   Format.eprintf "%s -> %s\n%!" src dst;
   assert (lines_of_process "cp" [ src; dst ] = [])
+
+let list_dir p =
+  match Sys.readdir (Fpath.to_string p) with
+  | exception Sys_error _ -> []
+  | names ->
+      Array.sort String.compare names;
+      Array.map (fun n -> (n, Fpath.( / ) p n)) names |> Array.to_list

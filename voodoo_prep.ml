@@ -44,17 +44,23 @@ module Prep = struct
   let info = Term.info "prep" ~doc:"Prep a directory tree for compiling"
 end
 
+module Prep_step2 = struct
+  let cmd = Term.(const Prep_step2.run $ const ())
+
+  let info =
+    Term.info "prep-odocmkgen"
+      ~doc:
+        "Add package and listing pages to a prepared directory tree. Must be \
+         called after $(b,prep) and before $(b,odocmkgen)."
+end
 
 let _ =
-  match Term.eval_choice ~err:Format.err_formatter Prep.(cmd,info) [] with
+  match
+    Term.eval_choice ~err:Format.err_formatter
+      Prep.(cmd, info)
+      [ Prep.(cmd, info); Prep_step2.(cmd, info) ]
+  with
   | `Error _ ->
-    Format.pp_print_flush Format.err_formatter ();
-    exit 2
+      Format.pp_print_flush Format.err_formatter ();
+      exit 2
   | _ -> ()
-
-
-
-
-
-
-
