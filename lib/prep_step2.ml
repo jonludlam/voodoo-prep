@@ -29,15 +29,33 @@ let is_hidden s =
   in
   aux 0
 
+(** Replace '-' by '_' and add the "page-" prefix. That's what [odocmkgen] is
+    doing. *)
+let page_name_of_string n =
+  "page-" ^ String.concat "_" (String.split_on_char '-' n)
+
+let module_name_of_string = String.capitalize_ascii
+
 (** This is an approximation. *)
-let unit_name_of_file_name f =
-  String.capitalize_ascii (Fpath.basename (Fpath.rem_ext (Fpath.v f)))
+let module_name_of_path f =
+  if Fpath.mem_ext [ ".cmti"; ".cmt"; ".cmi" ] f then
+    Some (module_name_of_string (Fpath.basename (Fpath.rem_ext f)))
+  else None
 
-let modules_of_file_list =
-  List.filter_map (fun (fname, _) ->
-      if is_hidden fname then None else Some (unit_name_of_file_name fname))
+(** Search recursively for modules. *)
+let rec modules_of_subpkg p =
+  let get_module (_, p) =
+    match module_name_of_path p with
+    | Some m as m' when not (is_hidden m) -> m'
+    | _ -> None
+  in
+  let dirs, files = List.partition is_dir (Util.list_dir p) in
+  (* Remove duplicates due to several cm{ti,t,i} per modules. *)
+  List.sort_uniq String.compare (List.filter_map get_module files)
+  @ List.concat_map (fun (_, p') -> modules_of_subpkg p') dirs
 
-let pp_childpages out = List.iter (fpf out "- {!childpage:%s}\n")
+let pp_childpages out =
+  List.iter (fun p -> fpf out "- {!childpage:%s}\n" (page_name_of_string p))
 
 let pp_childmodules out = List.iter (fpf out "- {!childmodule:%s}\n")
 
@@ -77,7 +95,7 @@ let prep_package pkg_name version p =
   let subpkgs =
     Util.list_dir (Fpath.( / ) p "lib")
     |> List.filter is_dir
-    |> List.map (fun (s, p') -> (s, modules_of_file_list (Util.list_dir p')))
+    |> List.map (fun (s, p') -> (s, modules_of_subpkg p'))
   in
   (* TODO: Detect user's package pages (not yet copied by 'prep') *)
   write_file (index_page_of_dir p) (gen_package_page pkg_name version subpkgs)
