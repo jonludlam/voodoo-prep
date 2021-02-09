@@ -10,8 +10,7 @@ type package = {
 let rec get_switch () =
   match !switch with
   | None ->
-    let cmd = "opam switch show" in
-    let cur_switch = Util.lines_of_process cmd |> List.hd in
+    let cur_switch = Util.lines_of_process "opam" [ "switch"; "show" ] |> List.hd in
     switch := Some cur_switch;
     get_switch ()
   | Some s ->
@@ -55,30 +54,58 @@ let deps_of_opam_result =
 
 let dependencies package =
   let open Listm in
-  if package.name = "ocaml" then [] else
-  let cmd = Format.asprintf "opam list --switch %s --installed --required-by %a --depopts --columns=name,version --color=never --short" (get_switch ()) pp_package package in
-  Util.lines_of_process cmd >>= deps_of_opam_result |> List.filter (fun p -> not @@ List.mem p.name ["ocaml-system"; "ocaml-variants"])
+  if package.name = "ocaml" then []
+  else
+    let package' = Format.asprintf "%a" pp_package package in
+    Util.lines_of_process "opam"
+      [
+        "list";
+        "--switch";
+        get_switch ();
+        "--installed";
+        "--required-by";
+        package';
+        "--depopts";
+        "--columns=name,version";
+        "--color=never";
+        "--short";
+      ]
+    >>= deps_of_opam_result
+    |> List.filter (fun p ->
+           not @@ List.mem p.name [ "ocaml-system"; "ocaml-variants" ])
 
 let all_opam_packages () =
   let open Listm in
-  let cmd = Format.asprintf "opam list --switch %s --columns=name,version --color=never --short" (get_switch ()) in
-  Util.lines_of_process cmd >>= deps_of_opam_result
-
-let lib () =
-  let cmd = Format.asprintf "opam var --switch %s lib" (get_switch ()) in
-  Util.lines_of_process cmd |> List.hd
+  Util.lines_of_process "opam"
+    [
+      "list";
+      "--switch";
+      get_switch ();
+      "--columns=name,version";
+      "--color=never";
+      "--short";
+    ]
+  >>= deps_of_opam_result
 
 let prefix () =
-  let cmd = Format.asprintf "opam var --switch %s prefix" (get_switch ()) in
-  Util.lines_of_process cmd |> List.hd
+  Util.lines_of_process "opam" [ "var"; "--switch"; get_switch (); "prefix" ]
+  |> List.hd
 
+(** Relative to [prefix ()]. *)
 let pkg_contents pkg =
   let prefix = prefix () in
-  let changes_file = Format.asprintf "%s/.opam-switch/install/%s.changes" prefix pkg in
-  let ic = open_in changes_file in
-  let changed = OpamFile.Changes.read_from_channel ic in
-  close_in ic;
-  let added = OpamStd.String.Map.fold (fun file x acc -> match x with OpamDirTrack.Added _ -> file :: acc | _ -> acc) changed [] in
-  List.map (fun path -> Fpath.(v prefix // v path)) added
-
-
+  let changes_file =
+    Format.asprintf "%s/.opam-switch/install/%s.changes" prefix pkg
+  in
+  let added =
+    match open_in changes_file with
+    | exception Sys_error _ -> []
+    | ic ->
+        let changed = OpamFile.Changes.read_from_channel ic in
+        close_in ic;
+        OpamStd.String.Map.fold
+          (fun file x acc ->
+            match x with OpamDirTrack.Added _ -> file :: acc | _ -> acc)
+          changed []
+  in
+  List.map Fpath.v added

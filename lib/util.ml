@@ -17,8 +17,8 @@ let lines_of_channel ic =
     with End_of_file -> List.rev acc
   in inner []
 
-let lines_of_process p =
-    let ic = Unix.open_process_in p in
+let lines_of_process prog args =
+    let ic = Unix.open_process_in (Filename.quote_command prog args) in
     protect
       ~finally:(fun () -> ignore(Unix.close_process_in ic))
       (fun () -> lines_of_channel ic)
@@ -31,7 +31,7 @@ let mkdir_p d =
     | Unix.Unix_error (Unix.EEXIST, _, _) -> d
     | exn -> raise exn) (Fpath.v ".") segs in
   ()
-  
+
 let write_file filename lines =
   let dir = fst (Fpath.split_base filename) in
   mkdir_p dir;
@@ -47,7 +47,6 @@ let time txt fn a =
   result
 
 let cp src dst =
-  Format.eprintf "cp: %s -> %s\n%!" src dst;
-  assert (lines_of_process (Printf.sprintf "/bin/cp %s %s" src dst) = [])
-
-
+  let src = Fpath.to_string src and dst = Fpath.to_string dst in
+  Format.eprintf "%s -> %s\n%!" src dst;
+  assert (lines_of_process "cp" [ src; dst ] = [])
